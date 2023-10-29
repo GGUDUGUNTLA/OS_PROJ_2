@@ -26,7 +26,7 @@ int uptime(void);
 int shutdown(void);
 void enable_sched_trace(int enable);
 void fork_alternate_winner(int enable);
-int tickets_owned(void);
+int tickets_owned(int pid);
 void set_sched(int);
 int transfer_tickets(int pid, int tickets);
 
