@@ -297,23 +297,23 @@ exit(void)
   curproc->state = ZOMBIE;
   int count =0;
 
-      struct proc *cpro;
-      for(cpro = ptable.proc; cpro < &ptable.proc[NPROC]; cpro++){
-         if(cpro->state == RUNNABLE || cpro->state == RUNNING)
+      struct proc *k;
+      for(k = ptable.proc; k < &ptable.proc[NPROC]; k++){
+         if(k->state == RUNNABLE || k->state == RUNNING)
             count++;
        }
-      for(cpro = ptable.proc; cpro < &ptable.proc[NPROC]; cpro++){
-        if(cpro->state == RUNNABLE || cpro->state == RUNNING)
+      for(k = ptable.proc; k < &ptable.proc[NPROC]; k++){
+        if(k->state == RUNNABLE || k->state == RUNNING)
         {
-        cpro->tickets = (STRIDE_TOTAL_TICKETS/count);
-        if(cpro->tickets != 0)
-        cpro->strides = ((STRIDE_TOTAL_TICKETS*10)/cpro->tickets);
-        cpro->pass = 0;   
+        k->tickets = (STRIDE_TOTAL_TICKETS/count);
+        if(k->tickets != 0)
+        k->strides = ((STRIDE_TOTAL_TICKETS*10)/k->tickets);
+        k->pass = 0;   
         }
       else{
-        cpro->tickets = 0;
-        cpro->strides = 0;
-        cpro->pass = 0;
+        k->tickets = 0;
+        k->strides = 0;
+        k->pass = 0;
         }
         }
   sched();
@@ -377,7 +377,7 @@ void
 scheduler(void)
 {
   struct proc *p;
-  struct proc *minproc = 0;
+  struct proc *leastproc = 0;
   struct cpu *c = mycpu();
   c->proc = 0;
   
@@ -390,18 +390,18 @@ scheduler(void)
         // Loop over process table looking for process to run.
         acquire(&ptable.lock);
         if(kind == 1){
-          int lowpass = max;
+          int leastpass = max;
           ran = 0;
 
           for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
           if(p->state != RUNNABLE)
             continue;
-          if(p->pass <lowpass){
-            lowpass = p->pass;
-            minproc = p;
+          if(p->pass <leastpass){
+            leastpass = p->pass;
+            leastproc = p;
           }
           } 
-         p= minproc;
+         p= leastproc;
          p->pass = p->pass + p->strides;
          ran = 1;
          c->proc = p;
@@ -636,25 +636,23 @@ procdump(void)
 }
 int transfer_tickets(int pid, int tickets)
 {
-  struct proc *curr = myproc() ;
+  struct proc *curp = myproc() ;
   if(tickets < 0) {
   return -1;
  }
- if(tickets > (curr->tickets - 1)) {
+ if(tickets > (curp->tickets - 1)) {
   return -2;
  }
- struct proc *tkt;
+ struct proc *tk;
    acquire(&ptable.lock);
-   for(tkt = ptable.proc; tkt < &ptable.proc[NPROC]; tkt++)
+   for(tk = ptable.proc; tk < &ptable.proc[NPROC]; tk++)
    {
-       if(tkt->pid == pid)
+       if(tk->pid == pid)
        {
-          tkt->tickets += tickets;
-	        curr->tickets -= tickets;
-	        tkt->strides = ((STRIDE_TOTAL_TICKETS * 10)/tkt->tickets);
-          curr -> strides = ((STRIDE_TOTAL_TICKETS * 10)/curr ->tickets);
-          //p-> pass = 0;
-          //curr-> pass = 0;
+          tk->tickets += tickets;
+	        curp->tickets -= tickets;
+	        tk->strides = ((STRIDE_TOTAL_TICKETS * 10)/tk->tickets);
+          curp -> strides = ((STRIDE_TOTAL_TICKETS * 10)/curp ->tickets);
 	        release(&ptable.lock);
           return tickets;
        }
