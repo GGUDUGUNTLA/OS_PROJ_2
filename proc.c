@@ -247,7 +247,8 @@ fork(void)
 
   if (fork_selector == 1)
   {
-  	sleep(curproc, &ptable.lock);
+  	curproc->state = RUNNING;
+    yield();
   }
   return pid;
 }
