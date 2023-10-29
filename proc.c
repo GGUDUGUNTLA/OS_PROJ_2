@@ -7,6 +7,11 @@
 #include "proc.h"
 #include "spinlock.h"
 
+int STRIDE_TOTAL_TICKETS = 100;
+int nextpid = 1;
+int max =2000;
+int kind;
+
 struct {
   struct spinlock lock;
   struct proc proc[NPROC];
@@ -14,7 +19,7 @@ struct {
 
 static struct proc *initproc;
 
-int nextpid = 1;
+//int nextpid = 1;
 int sched_trace_enabled = 0; // ZYF: for OS CPU/process project
 int sched_trace_counter = 0; // ZYF: counter for print formatting
 extern void forkret(void);
@@ -217,13 +222,33 @@ fork(void)
 
   acquire(&ptable.lock);
   np->state = RUNNABLE;
+  release(&ptable.lock);
+
+  acquire(&ptable.lock);
+  int count =0;
+  for(curproc = ptable.proc; curproc < &ptable.proc[NPROC]; curproc++){
+    if(curproc ->state == RUNNABLE)
+       count++;
+  }
+  for(curproc  =ptable.proc; curproc < &ptable.proc[NPROC]; curproc++){
+    if(curproc->state == RUNNABLE || curproc->state == RUNNING){
+      curproc->tickets = (STRIDE_TOTAL_TICKETS/count);
+      if(curproc->tickets != 0)
+      curproc->strides = ((STRIDE_TOTAL_TICKETS*10)/curproc->tickets);
+      curproc->pass = 0;
+
+  }else{
+    curproc->tickets =0;
+    curproc->strides =0;
+  }
+  }
+  release(&ptable.lock);
   
+
   if (fork_selector == 1)
   {
   	sleep(curproc, &ptable.lock);
   }
-  release(&ptable.lock);
-
   return pid;
 }
 
@@ -269,6 +294,27 @@ exit(void)
 
   // Jump into the scheduler, never to return.
   curproc->state = ZOMBIE;
+  int count =0;
+
+      struct proc *cpro;
+      for(cpro = ptable.proc; cpro < &ptable.proc[NPROC]; cpro++){
+         if(cpro->state == RUNNABLE || cpro->state == RUNNING)
+            count++;
+       }
+      for(cpro = ptable.proc; cpro < &ptable.proc[NPROC]; cpro++){
+        if(cpro->state == RUNNABLE || cpro->state == RUNNING)
+        {
+        cpro->tickets = (STRIDE_TOTAL_TICKETS/count);
+        if(cpro->tickets != 0)
+        cpro->strides = ((STRIDE_TOTAL_TICKETS*10)/cpro->tickets);
+        cpro->pass = 0;   
+        }
+      else{
+        cpro->tickets = 0;
+        cpro->strides = 0;
+        cpro->pass = 0;
+        }
+        }
   sched();
   panic("zombie exit");
 }
@@ -326,9 +372,11 @@ wait(void)
 //  - eventually that process transfers control
 //      via swtch back to the scheduler.
 void
+
 scheduler(void)
 {
   struct proc *p;
+  struct proc *minproc = 0;
   struct cpu *c = mycpu();
   c->proc = 0;
   
@@ -340,13 +388,36 @@ scheduler(void)
 
         // Loop over process table looking for process to run.
         acquire(&ptable.lock);
-        ran = 0;
-        for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+        if(kind == 1){
+          int lowpass = max;
+          ran = 0;
+
+          for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
           if(p->state != RUNNABLE)
             continue;
-
-          ran = 1;
-      
+          if(p->pass <lowpass){
+            lowpass = p->pass;
+            minproc = p;
+          }
+          } 
+         p= minproc;
+         p->pass = p->pass + p->strides;
+         ran = 1;
+         c->proc = p;
+         switchuvm(p);
+         p->state = RUNNING;
+         swtch(&c->scheduler, p->context);
+         switchkvm();
+         c->proc = 0;
+         }
+         else{
+         ran = 0;
+         for (p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+         if(p->state != RUNNABLE)
+         continue;
+         ran = 1;
+         
+            
           // Switch to chosen process.  It is the process's job
           // to release ptable.lock and then reacquire it
           // before jumping back to us.
@@ -360,13 +431,14 @@ scheduler(void)
           // Process is done running for now.
           // It should have changed its p->state before coming back.
           c->proc = 0;
-    }
-    release(&ptable.lock);
+          }
+          }
+          release(&ptable.lock);
 
-    if (ran == 0){
+         if (ran == 0){
         halt();
     }
-  }
+   }
 }
 
 // Enter scheduler.  Must hold only ptable.lock
@@ -560,4 +632,32 @@ procdump(void)
     }
     cprintf("\n");
   }
+}
+int transfer_tickets(int pid, int tickets)
+{
+  struct proc *curr = myproc() ;
+  if(tickets < 0) {
+  return -1;
+ }
+ if(tickets > (curr->tickets - 1)) {
+  return -2;
+ }
+ struct proc *tkt;
+   acquire(&ptable.lock);
+   for(tkt = ptable.proc; tkt < &ptable.proc[NPROC]; tkt++)
+   {
+       if(tkt->pid == pid)
+       {
+          tkt->tickets += tickets;
+	        curr->tickets -= tickets;
+	        tkt->strides = ((STRIDE_TOTAL_TICKETS * 10)/tkt->tickets);
+          curr -> strides = ((STRIDE_TOTAL_TICKETS * 10)/curr ->tickets);
+          //p-> pass = 0;
+          //curr-> pass = 0;
+	        release(&ptable.lock);
+          return tickets;
+       }
+   } 
+   release(&ptable.lock);
+   return -3;
 }

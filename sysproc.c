@@ -124,3 +124,27 @@ int sys_enable_sched_trace(void)
 
   return 0;
 }
+int sys_set_sched(void){
+  int k;
+  if(!argint(0, &k)){
+    if(k==1){
+      kind = 1;
+    }else{
+      kind =0;
+    }
+  }
+  return 0;
+}
+
+int sys_tickets_owned(void){
+  struct proc *proc = myproc();
+  return proc->tickets;
+}
+
+int sys_transfer_tickets(void){
+  int pid, tickets;
+  argint(0, &pid);
+  argint(1, &tickets);
+
+  return transfer_tickets(pid, tickets);
+}

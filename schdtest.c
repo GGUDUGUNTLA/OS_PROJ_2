@@ -52,6 +52,7 @@ void example_test_code()
     }
     else // parent
     {
+        transfer_tickets(pid, 49);
         do_parent();
         if (wait() < 0)
         {
@@ -65,10 +66,18 @@ void example_test_code()
 int
 main(int argc, char *argv[])
 {
+    int g=0;
+    if(argv[1][0] == '0'){
+        g=0;
+    }
+    else if(argv[1][0] == '1'){
+        g=1;
+    }
     enable_sched_trace(1);
 
     /* ---------------- start: add your test code ------------------- */
 
+    set_sched(g);
     example_test_code();
 
     /* ---------------- end: add your test code ------------------- */
